@@ -120,4 +120,7 @@
   <data name="$this.Icon" type="System.Resources.ResXFileRef, System.Windows.Forms">
     <value>rebind_small.ico;System.Drawing.Icon, System.Drawing</value>
   </data>
+  <data name="$this.BackgroundImage" type="System.Resources.ResXFileRef, System.Windows.Forms">
+    <value>Bitmap248.bmp;System.Drawing.Bitmap, System.Drawing</value>
+  </data>
 </root>

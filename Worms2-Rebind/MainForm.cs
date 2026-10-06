@@ -31,6 +31,10 @@ namespace GameKeyRebinder
 
         public MainForm()
         {
+            // Paint the stretched background in one pass and refresh it on resize.
+            DoubleBuffered = true;
+            ResizeRedraw = true;
+
             _bindings = CreateBindings();
             _bindingsByTextBox = new Dictionary<TextBox, KeyBinding>();
 
@@ -39,15 +43,18 @@ namespace GameKeyRebinder
             Text = "Worms 2 Rebind";
             ComponentResourceManager resources = new ComponentResourceManager(typeof(MainForm));
             Icon = (Icon)resources.GetObject("$this.Icon");
+            BackgroundImage = (Image)resources.GetObject("$this.BackgroundImage");
+            BackgroundImageLayout = ImageLayout.Stretch;
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(520, 610);
-            MinimumSize = new Size(535, 500);
+            ClientSize = new Size(462, 610);
+            MinimumSize = new Size(478, 500);
             Font = new Font("Segoe UI", 9.0F, FontStyle.Regular, GraphicsUnit.Point);
             Padding = new Padding(16, 14, 16, 8);
             KeyPreview = true;
 
-            _bindingsPanel = new Panel();
-            _bindingsPanel.Size = new Size(488, 510);
+            _bindingsPanel = new BufferedPanel();
+            _bindingsPanel.BackColor = SystemColors.Control;
+            _bindingsPanel.Size = new Size(430, 510);
             _bindingsPanel.Dock = DockStyle.Fill;
             _bindingsPanel.BorderStyle = BorderStyle.FixedSingle;
             _bindingsPanel.AutoScroll = true;
@@ -55,30 +62,34 @@ namespace GameKeyRebinder
 
             BuildBindingRows(_bindingsPanel);
 
-            Panel footerPanel = new Panel();
-            footerPanel.Size = new Size(488, 57);
+            Panel footerPanel = new BufferedPanel();
+            footerPanel.BackColor = Color.Transparent;
+            footerPanel.Size = new Size(430, 57);
             footerPanel.Dock = DockStyle.Bottom;
             Controls.Add(footerPanel);
 
             _statusLabel = new Label();
+            _statusLabel.BackColor = Color.Transparent;
             _statusLabel.Text = String.Empty;
             _statusLabel.Location = new Point(0, 9);
-            _statusLabel.Size = new Size(280, 48);
+            _statusLabel.Size = new Size(222, 48);
             _statusLabel.Anchor = AnchorStyles.Bottom | AnchorStyles.Left;
             footerPanel.Controls.Add(_statusLabel);
 
             _resetButton = new Button();
+            _resetButton.BackColor = SystemColors.Control;
             _resetButton.Text = "Reset";
             _resetButton.Size = new Size(92, 31);
-            _resetButton.Location = new Point(296, 17);
+            _resetButton.Location = new Point(238, 17);
             _resetButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             _resetButton.Click += new EventHandler(ResetButton_Click);
             footerPanel.Controls.Add(_resetButton);
 
             _saveButton = new Button();
+            _saveButton.BackColor = SystemColors.Control;
             _saveButton.Text = "Save";
             _saveButton.Size = new Size(92, 31);
-            _saveButton.Location = new Point(396, 17);
+            _saveButton.Location = new Point(338, 17);
             _saveButton.Anchor = AnchorStyles.Bottom | AnchorStyles.Right;
             _saveButton.Click += new EventHandler(SaveButton_Click);
             footerPanel.Controls.Add(_saveButton);
@@ -91,6 +102,16 @@ namespace GameKeyRebinder
             AutoScaleDimensions = new SizeF(96.0F, 96.0F);
             AutoScaleMode = AutoScaleMode.Dpi;
             ResumeLayout(true);
+        }
+
+        private sealed class BufferedPanel : Panel
+        {
+            public BufferedPanel()
+            {
+                // Panels paint independently, including the transparent footer.
+                DoubleBuffered = true;
+                ResizeRedraw = true;
+            }
         }
 
         private static List<KeyBinding> CreateBindings()
@@ -153,11 +174,11 @@ namespace GameKeyRebinder
 
         private void BuildBindingRows(Panel panel)
         {
-            const int labelLeft = 12;
-            const int labelWidth = 132;
-            const int boxLeft = 153;
-            const int boxWidth = 190;
-            const int clearLeft = 353;
+            const int labelLeft = 6;
+            const int labelWidth = 112;
+            const int boxLeft = 127;
+            const int boxWidth = 180;
+            const int clearLeft = 317;
             const int clearWidth = 88;
             const int rowHeight = 31;
             const int topPadding = 10;
@@ -169,7 +190,9 @@ namespace GameKeyRebinder
                 int top = topPadding + (i * rowHeight);
 
                 Label label = new Label();
+                label.BackColor = SystemColors.Control;
                 label.Text = binding.DisplayName;
+                label.TextAlign = ContentAlignment.TopRight;
                 label.Location = new Point(labelLeft, top + 4);
                 label.Size = new Size(labelWidth, 22);
                 panel.Controls.Add(label);
@@ -194,6 +217,7 @@ namespace GameKeyRebinder
                 _bindingsByTextBox.Add(textBox, binding);
 
                 Button clearButton = new Button();
+                clearButton.BackColor = SystemColors.Control;
                 clearButton.Text = "Clear";
                 clearButton.Location = new Point(clearLeft, top - 1);
                 clearButton.Size = new Size(clearWidth, 26);
@@ -203,7 +227,8 @@ namespace GameKeyRebinder
                 panel.Controls.Add(clearButton);
             }
 
-            panel.AutoScrollMinSize = new Size(455, topPadding + (_bindings.Count * rowHeight) + 8);
+            panel.AutoScrollMinSize = new Size(clearLeft + clearWidth + 6,
+                topPadding + (_bindings.Count * rowHeight) + 8);
             RefreshAllBindingText();
         }
 
