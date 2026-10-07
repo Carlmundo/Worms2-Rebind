@@ -21,6 +21,7 @@ namespace GameKeyRebinder
         private readonly Label _statusLabel;
         private readonly Button _resetButton;
         private readonly Button _saveButton;
+        private readonly Panel _contentPanel;
         private readonly Panel _bindingsPanel;
 
         // When a key is captured we wait for its KeyUp before moving focus.
@@ -46,11 +47,18 @@ namespace GameKeyRebinder
             BackgroundImage = (Image)resources.GetObject("$this.BackgroundImage");
             BackgroundImageLayout = ImageLayout.Stretch;
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(462, 610);
-            MinimumSize = new Size(478, 500);
+            ClientSize = new Size(478, 490);
+            MinimumSize = new Size(478, 490);
             Font = new Font("Segoe UI", 9.0F, FontStyle.Regular, GraphicsUnit.Point);
             Padding = new Padding(16, 14, 16, 8);
             KeyPreview = true;
+
+            _contentPanel = new BufferedPanel();
+            _contentPanel.BackColor = Color.Transparent;
+            _contentPanel.Size = new Size(430, 588);
+            _contentPanel.MaximumSize = new Size(430, 0);
+            _contentPanel.Anchor = AnchorStyles.None;
+            Controls.Add(_contentPanel);
 
             _bindingsPanel = new BufferedPanel();
             _bindingsPanel.BackColor = SystemColors.Control;
@@ -58,7 +66,7 @@ namespace GameKeyRebinder
             _bindingsPanel.Dock = DockStyle.Fill;
             _bindingsPanel.BorderStyle = BorderStyle.FixedSingle;
             _bindingsPanel.AutoScroll = true;
-            Controls.Add(_bindingsPanel);
+            _contentPanel.Controls.Add(_bindingsPanel);
 
             BuildBindingRows(_bindingsPanel);
 
@@ -66,7 +74,7 @@ namespace GameKeyRebinder
             footerPanel.BackColor = Color.Transparent;
             footerPanel.Size = new Size(430, 57);
             footerPanel.Dock = DockStyle.Bottom;
-            Controls.Add(footerPanel);
+            _contentPanel.Controls.Add(footerPanel);
 
             _statusLabel = new Label();
             _statusLabel.BackColor = Color.Transparent;
@@ -102,6 +110,7 @@ namespace GameKeyRebinder
             AutoScaleDimensions = new SizeF(96.0F, 96.0F);
             AutoScaleMode = AutoScaleMode.Dpi;
             ResumeLayout(true);
+            AlignBindingRows();
         }
 
         private sealed class BufferedPanel : Panel
@@ -111,6 +120,32 @@ namespace GameKeyRebinder
                 // Panels paint independently, including the transparent footer.
                 DoubleBuffered = true;
                 ResizeRedraw = true;
+            }
+        }
+
+        protected override void OnLayout(LayoutEventArgs e)
+        {
+            base.OnLayout(e);
+
+            if (_contentPanel == null)
+            {
+                return;
+            }
+
+            // Keep a compact, horizontally centered column while the list
+            // fills the available height and the footer stays at the bottom.
+            int availableWidth = Math.Max(0, ClientSize.Width - Padding.Horizontal);
+            int availableHeight = Math.Max(0, ClientSize.Height - Padding.Vertical);
+            int width = Math.Min(_contentPanel.MaximumSize.Width, availableWidth);
+            Rectangle bounds = new Rectangle(
+                Padding.Left + (availableWidth - width) / 2,
+                Padding.Top,
+                width,
+                availableHeight);
+
+            if (_contentPanel.Bounds != bounds)
+            {
+                _contentPanel.Bounds = bounds;
             }
         }
 
@@ -182,6 +217,9 @@ namespace GameKeyRebinder
             const int clearWidth = 88;
             const int rowHeight = 31;
             const int topPadding = 10;
+            const int bottomPadding = 16;
+
+            panel.Padding = new Padding(0, 0, 0, bottomPadding);
 
             int i;
             for (i = 0; i < _bindings.Count; i++)
@@ -219,8 +257,8 @@ namespace GameKeyRebinder
                 Button clearButton = new Button();
                 clearButton.BackColor = SystemColors.Control;
                 clearButton.Text = "Clear";
-                clearButton.Location = new Point(clearLeft, top - 1);
-                clearButton.Size = new Size(clearWidth, 26);
+                clearButton.Location = new Point(clearLeft, top);
+                clearButton.Size = new Size(clearWidth, 24);
                 clearButton.TabStop = true;
                 clearButton.Tag = binding;
                 clearButton.Click += new EventHandler(ClearButton_Click);
@@ -228,8 +266,45 @@ namespace GameKeyRebinder
             }
 
             panel.AutoScrollMinSize = new Size(clearLeft + clearWidth + 6,
-                topPadding + (_bindings.Count * rowHeight) + 8);
+                topPadding + (_bindings.Count * rowHeight) + bottomPadding);
             RefreshAllBindingText();
+        }
+
+        private void AlignBindingRows()
+        {
+            // A single-line TextBox uses its native font height at the current
+            // DPI even before WinForms scales the rest of the layout. Match
+            // other controls only after that scaling has finished.
+            _bindingsPanel.SuspendLayout();
+            int contentBottom = 0;
+            foreach (Control control in _bindingsPanel.Controls)
+            {
+                Button clearButton = control as Button;
+                KeyBinding binding = clearButton == null ? null : clearButton.Tag as KeyBinding;
+                if (binding == null)
+                {
+                    continue;
+                }
+
+                TextBox textBox = binding.TextBox;
+                clearButton.SetBounds(clearButton.Left, textBox.Top,
+                    clearButton.Width, textBox.Height);
+
+                // Align the label's text, rather than its surrounding box,
+                // with the native edit control's centered line of text.
+                int textHeight = textBox.Font.Height;
+                binding.Label.SetBounds(binding.Label.Left,
+                    textBox.Top + (textBox.Height - textHeight) / 2,
+                    binding.Label.Width, textHeight);
+                contentBottom = Math.Max(contentBottom,
+                    textBox.Bottom - _bindingsPanel.AutoScrollPosition.Y);
+            }
+            // CLR 2.0 does not scale AutoScrollMinSize or preserve the panel's
+            // bottom padding when calculating its automatic scroll extent.
+            _bindingsPanel.AutoScrollMinSize = new Size(
+                _bindingsPanel.AutoScrollMinSize.Width,
+                contentBottom + _bindingsPanel.Padding.Bottom);
+            _bindingsPanel.ResumeLayout(true);
         }
 
         private void MainForm_Load(object sender, EventArgs e)
@@ -486,7 +561,7 @@ namespace GameKeyRebinder
                     }
                 }
 
-                parser.WriteFile(iniPath, data);
+                parser.WriteFile(iniPath, data, new System.Text.UTF8Encoding(false));
                 string strTxtOverride = "override";
                 if (savedOverrides != 1) { strTxtOverride += "s"; }
                 SetStatusText("Saved " + savedOverrides.ToString(CultureInfo.InvariantCulture) + " " + strTxtOverride);
@@ -613,18 +688,6 @@ namespace GameKeyRebinder
         private static string GetIniPath()
         {
             return Path.Combine(Application.StartupPath, IniFileName);
-        }
-
-        private void InitializeComponent()
-        {
-            this.SuspendLayout();
-            // 
-            // MainForm
-            // 
-            this.ClientSize = new System.Drawing.Size(274, 229);
-            this.Name = "MainForm";
-            this.ResumeLayout(false);
-
         }
     }
 }
